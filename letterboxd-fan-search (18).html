@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Letterboxd Fan Search</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f7f6f3;
+      --surface: #ffffff;
+      --border: #e4e2dc;
+      --text: #1a1916;
+      --muted: #8a8780;
+      --accent: #00b020;
+      --accent-light: #e8f7eb;
+      --radius: 10px;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 48px 24px;
+    }
+
+    header { text-align: center; margin-bottom: 48px; }
+
+    header h1 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 2.6rem;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+
+    header p { color: var(--muted); font-size: 0.95rem; font-weight: 300; }
+
+    .container { max-width: 640px; margin: 0 auto; }
+
+    .search-box { position: relative; margin-bottom: 12px; }
+
+    .search-box input {
+      width: 100%;
+      padding: 14px 18px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 1rem;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      outline: none;
+      transition: border-color 0.2s;
+      color: var(--text);
+    }
+
+    .search-box input:focus { border-color: var(--accent); }
+    .search-box input::placeholder { color: var(--muted); }
+
+    .dropdown {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0; right: 0;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      z-index: 10;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    }
+
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .dropdown-item:hover { background: var(--bg); }
+
+    .dropdown-item img {
+      width: 32px;
+      height: 48px;
+      object-fit: cover;
+      border-radius: 4px;
+      flex-shrink: 0;
+      background: var(--border);
+    }
+
+    .dropdown-item .no-poster {
+      width: 32px;
+      height: 48px;
+      border-radius: 4px;
+      background: var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.6rem;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+
+    .dropdown-item .info .title { font-size: 0.95rem; font-weight: 500; }
+    .dropdown-item .info .year { font-size: 0.8rem; color: var(--muted); }
+
+    .dropdown-loading, .dropdown-empty {
+      padding: 14px 18px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .selected-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 28px;
+    }
+
+    .selected-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      animation: fadeIn 0.15s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .selected-item .left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .selected-item .index {
+      font-size: 0.8rem;
+      color: var(--muted);
+      width: 18px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .selected-item .movie-name { font-size: 0.95rem; font-weight: 500; }
+    .selected-item .movie-year { font-size: 0.82rem; color: var(--muted); }
+
+    .selected-item .slug {
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-family: monospace;
+    }
+
+    .selected-item .right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+      margin-left: 10px;
+    }
+
+    .status {
+      font-size: 0.7rem;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 99px;
+      white-space: nowrap;
+    }
+
+    .status.checking  { background: #f0f0ee; color: var(--muted); }
+    .status.verified  { background: var(--accent-light); color: #007a16; }
+    .status.adjusted  { background: #fff8e6; color: #9a6200; }
+    .status.unverified { background: #fff0f0; color: #b00020; }
+
+    .remove-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 1.1rem;
+      line-height: 1;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+    }
+
+    .remove-btn:hover { color: #c00; background: #fff0f0; }
+
+    .output-section { margin-bottom: 24px; }
+
+    .output-box {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      font-family: monospace;
+      font-size: 0.9rem;
+      color: var(--text);
+      word-break: break-all;
+      line-height: 1.6;
+      min-height: 52px;
+    }
+
+    .output-box .placeholder {
+      color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-style: italic;
+      font-size: 0.9rem;
+    }
+
+    .output-actions { display: flex; gap: 10px; margin-top: 10px; }
+
+    .btn {
+      flex: 1;
+      padding: 13px;
+      border-radius: var(--radius);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-copy {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      color: var(--text);
+    }
+
+    .btn-copy:hover:not(:disabled) { background: var(--bg); }
+
+    .btn-search { background: var(--accent); color: #fff; }
+    .btn-search:hover:not(:disabled) { opacity: 0.88; }
+
+    .copied-toast {
+      display: none;
+      font-size: 0.8rem;
+      color: var(--accent);
+      margin-top: 6px;
+      text-align: center;
+    }
+
+    .copied-toast.show { display: block; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Letterboxd Fan Search</h1>
+    <p>Find films you share with other users</p>
+  </header>
+
+  <div class="container">
+    <div class="search-box" id="searchBox">
+      <input type="text" id="searchInput" placeholder="Search for a movie…" autocomplete="off" />
+      <div class="dropdown" id="dropdown" style="display:none;"></div>
+    </div>
+
+    <div class="section-label" id="selectedLabel" style="display:none;">Selected films</div>
+    <div class="selected-list" id="selectedList"></div>
+
+    <div class="output-section">
+      <div class="section-label">Search string</div>
+      <div class="output-box" id="outputBox">
+        <span class="placeholder">Select at least one film to generate your search string</span>
+      </div>
+      <div class="output-actions">
+        <button class="btn btn-copy" id="copyBtn" disabled>Copy</button>
+        <button class="btn btn-search" id="searchBtn" disabled>Search on Letterboxd →</button>
+      </div>
+      <div class="copied-toast" id="copiedToast">Copied to clipboard!</div>
+    </div>
+  </div>
+
+  <script>
+    const TMDB_KEY = '9931a9ba168e2b28ee16f84df196839a';
+    const input = document.getElementById('searchInput');
+    const dropdown = document.getElementById('dropdown');
+    const selectedList = document.getElementById('selectedList');
+    const selectedLabel = document.getElementById('selectedLabel');
+    const outputBox = document.getElementById('outputBox');
+    const copyBtn = document.getElementById('copyBtn');
+    const searchBtn = document.getElementById('searchBtn');
+    const copiedToast = document.getElementById('copiedToast');
+
+    let selected = [];
+    let debounceTimer;
+
+    function slugify(title) {
+      return title
+        .toLowerCase()
+        .replace(/['']/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    }
+
+    function buildString() {
+      return selected.map(m => 'fan:' + m.slug).join(' ');
+    }
+
+    // Fetch the canonical Letterboxd slug by searching the RSS feed and matching TMDB ID.
+    async function resolveSlug(tmdbId, title) {
+      const baseSlug = slugify(title);
+      try {
+        const rssUrl = 'https://letterboxd.com/search/films/' + encodeURIComponent(title) + '/?format=rss';
+        const res = await fetch(rssUrl);
+        if (!res.ok) return { slug: baseSlug, status: 'unverified' };
+        const text = await res.text();
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(text, 'application/xml');
+        const items = Array.from(xml.querySelectorAll('item'));
+        // Each item has a <link> like https://letterboxd.com/film/moonlight-2016/
+        // and a <letterboxd:tmdbid> or we match by title + year
+        for (const item of items) {
+          const link = item.querySelector('link') ? item.querySelector('link').textContent : '';
+          // Check for TMDB ID match in the description or guid
+          const guid = item.querySelector('guid') ? item.querySelector('guid').textContent : '';
+          const tmdbEl = item.getElementsByTagNameNS('*', 'tmdbid')[0] || item.querySelector('tmdbid');
+          const itemTmdbId = tmdbEl ? tmdbEl.textContent.trim() : null;
+          if (itemTmdbId && itemTmdbId === String(tmdbId)) {
+            const match = (link || guid).match(/letterboxd\.com\/film\/([^\/]+)/);
+            if (match) return { slug: match[1], status: 'verified' };
+          }
+        }
+        // Fallback: if no TMDB ID match, use first result's slug
+        const firstLink = items[0] && (items[0].querySelector('link') ? items[0].querySelector('link').textContent : '');
+        const fallbackMatch = firstLink && firstLink.match(/letterboxd\.com\/film\/([^\/]+)/);
+        if (fallbackMatch) return { slug: fallbackMatch[1], status: 'unverified' };
+        return { slug: baseSlug, status: 'unverified' };
+      } catch {
+        return { slug: baseSlug, status: 'unverified' };
+      }
+    }
+
+    function statusLabel(s) {
+      return { checking: 'Checking…', verified: '✓ Verified', adjusted: '+ Year added', unverified: '? Unverified' }[s] || 'Checking…';
+    }
+
+    function render() {
+      selectedList.innerHTML = '';
+      selectedLabel.style.display = selected.length ? 'block' : 'none';
+
+      selected.forEach((movie, i) => {
+        const item = document.createElement('div');
+        item.className = 'selected-item';
+
+        const vstatus = movie.verifyStatus || 'checking';
+
+        item.innerHTML =
+          '<div class="left">' +
+            '<span class="index">' + (i + 1) + '.</span>' +
+            '<div>' +
+              '<div class="movie-name">' + movie.title + (movie.year ? ' <span class="movie-year">(' + movie.year + ')</span>' : '') + '</div>' +
+              '<div class="slug">fan:' + movie.slug + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="right">' +
+            '<span class="status ' + vstatus + '">' + statusLabel(vstatus) + '</span>' +
+            '<button class="remove-btn" data-index="' + i + '" title="Remove">\u00d7</button>' +
+          '</div>';
+
+        selectedList.appendChild(item);
+      });
+
+      if (selected.length === 0) {
+        outputBox.innerHTML = '<span class="placeholder">Select at least one film to generate your search string</span>';
+        copyBtn.disabled = true;
+        searchBtn.disabled = true;
+      } else {
+        outputBox.textContent = buildString();
+        copyBtn.disabled = false;
+        searchBtn.disabled = false;
+      }
+    }
+
+    selectedList.addEventListener('click', e => {
+      const btn = e.target.closest('.remove-btn');
+      if (btn) {
+        selected.splice(+btn.dataset.index, 1);
+        render();
+      }
+    });
+
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(buildString()).then(() => {
+        copiedToast.classList.add('show');
+        setTimeout(() => copiedToast.classList.remove('show'), 2000);
+      });
+    });
+
+    searchBtn.addEventListener('click', () => {
+      const query = encodeURIComponent(buildString());
+      window.open('https://letterboxd.com/search/members/' + query + '/', '_blank');
+    });
+
+    input.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      const q = input.value.trim();
+      if (!q) { dropdown.style.display = 'none'; return; }
+      debounceTimer = setTimeout(() => fetchMovies(q), 300);
+    });
+
+    async function fetchMovies(query) {
+      dropdown.style.display = 'block';
+      dropdown.innerHTML = '<div class="dropdown-loading">Searching\u2026</div>';
+
+      try {
+        const res = await fetch('https://api.themoviedb.org/3/search/movie?api_key=' + TMDB_KEY + '&query=' + encodeURIComponent(query) + '&include_adult=false');
+        const data = await res.json();
+        const results = (data.results || []).slice(0, 6);
+
+        if (!results.length) {
+          dropdown.innerHTML = '<div class="dropdown-empty">No results found</div>';
+          return;
+        }
+
+        dropdown.innerHTML = '';
+        results.forEach(movie => {
+          const year = movie.release_date ? movie.release_date.slice(0, 4) : '';
+          const poster = movie.poster_path
+            ? '<img src="https://image.tmdb.org/t/p/w92' + movie.poster_path + '" alt="" />'
+            : '<div class="no-poster">?</div>';
+
+          const item = document.createElement('div');
+          item.className = 'dropdown-item';
+          item.innerHTML =
+            poster +
+            '<div class="info">' +
+              '<div class="title">' + movie.title + '</div>' +
+              (year ? '<div class="year">' + year + '</div>' : '') +
+            '</div>';
+
+          item.addEventListener('click', async () => {
+            // Avoid duplicates
+            if (selected.find(m => m.title === movie.title && m.year === year)) {
+              input.value = '';
+              dropdown.style.display = 'none';
+              return;
+            }
+
+            const entry = {
+              title: movie.title,
+              year,
+              slug: slugify(movie.title),
+              verifyStatus: 'checking'
+            };
+
+            selected.push(entry);
+            render();
+            input.value = '';
+            dropdown.style.display = 'none';
+
+            // Resolve slug via Letterboxd tmdb redirect
+            const result = await resolveSlug(movie.id, movie.title);
+            entry.slug = result.slug;
+            entry.verifyStatus = result.status;
+            render();
+          });
+
+          dropdown.appendChild(item);
+        });
+      } catch (err) {
+        dropdown.innerHTML = '<div class="dropdown-empty">Error fetching results</div>';
+      }
+    }
+
+    document.addEventListener('click', e => {
+      if (!document.getElementById('searchBox').contains(e.target)) {
+        dropdown.style.display = 'none';
+      }
+    });
+  </script>
+</body>
+</html>
